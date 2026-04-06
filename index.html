@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Neural Vision — AI Image Classifier</title>
+  <link rel="stylesheet" href="static/css/style.css" />
+</head>
+<body>
+
+<canvas id="neural-canvas"></canvas>
+
+<div class="page-wrap">
+
+  <nav>
+    <a class="nav-logo" href="index.html">NEURAL<span>VISION</span></a>
+    <div class="nav-links">
+      <a href="catdog.html">Cat &amp; Dog</a>
+      <a href="mnist.html">Digit Recognition</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <p class="hero-eyebrow">⬡ MACHINE LEARNING DEMO ⬡</p>
+
+    <h1>
+      SEE THROUGH<br>
+      <span class="line2 glitch">NEURAL EYES</span>
+    </h1>
+
+    <p class="hero-sub">
+      Two hand-trained models — a convolutional network for cat &amp; dog
+      classification and a dense network for handwritten digit recognition.
+      Upload any image and watch AI think in real time.
+      <br><br>
+      <span style="color:var(--green);font-family:var(--font-mono);font-size:.8rem">
+        ⚡ Runs 100% in your browser — no server required
+      </span>
+    </p>
+
+    <div class="model-cards">
+      <a class="model-card cat-dog" href="catdog.html">
+        <span class="card-icon">🐾</span>
+        <span class="card-tag">CNN · BINARY</span>
+        <h2 class="card-title">Cat vs Dog</h2>
+        <p class="card-body">
+          A convolutional neural network trained on 2,000 RGB images at 100 × 100
+          resolution. Two Conv2D + MaxPool stages extract visual features before a
+          Dense head decides — cat or dog?
+        </p>
+        <span class="card-cta">TRY THE MODEL →</span>
+      </a>
+
+      <a class="model-card mnist" href="mnist.html">
+        <span class="card-icon">✏️</span>
+        <span class="card-tag">DENSE · 10-CLASS</span>
+        <h2 class="card-title">Digit Recognition</h2>
+        <p class="card-body">
+          A fully-connected network trained on the classic MNIST dataset — 60,000
+          handwritten digits, 28 × 28 grayscale. Flattened into 784 neurons, two
+          Dense layers infer the digit 0–9.
+        </p>
+        <span class="card-cta">TRY THE MODEL →</span>
+      </a>
+    </div>
+
+    <div style="display:flex;gap:2.5rem;margin-top:4rem;flex-wrap:wrap;justify-content:center;">
+      <div style="text-align:center">
+        <div style="font-family:var(--font-head);font-size:1.6rem;color:var(--cyan)">2</div>
+        <div style="font-size:.75rem;color:var(--muted);letter-spacing:.1em">MODELS</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-family:var(--font-head);font-size:1.6rem;color:var(--cyan)">62K+</div>
+        <div style="font-size:.75rem;color:var(--muted);letter-spacing:.1em">TRAINING IMAGES</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-family:var(--font-head);font-size:1.6rem;color:var(--cyan)">10</div>
+        <div style="font-size:.75rem;color:var(--muted);letter-spacing:.1em">EPOCHS EACH</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-family:var(--font-head);font-size:1.6rem;color:var(--cyan)">TFJS</div>
+        <div style="font-size:.75rem;color:var(--muted);letter-spacing:.1em">IN-BROWSER INFERENCE</div>
+      </div>
+    </div>
+  </section>
+
+  <section style="border-top:1px solid var(--border);padding:5rem 2rem;max-width:900px;margin:0 auto;">
+    <p class="section-tag">WORKFLOW</p>
+    <h2 class="section-title">How it works</h2>
+    <p class="section-subtitle" style="margin-bottom:2.5rem">
+      From raw pixels to prediction in milliseconds — everything runs in your browser.
+    </p>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1.25rem;">
+      <div class="glass-card" style="position:relative;overflow:hidden;">
+        <span style="position:absolute;top:1rem;right:1rem;font-family:var(--font-head);font-size:2rem;color:var(--faint);font-weight:900">01</span>
+        <span style="font-size:1.75rem;margin-bottom:.75rem;display:block">📤</span>
+        <h3 style="font-family:var(--font-head);font-size:.8rem;letter-spacing:.1em;margin-bottom:.5rem;color:var(--cyan)">Upload</h3>
+        <p style="font-size:.85rem;color:var(--muted);line-height:1.6">Drop any photo — JPEG, PNG, WebP. It never leaves your device.</p>
+      </div>
+      <div class="glass-card" style="position:relative;overflow:hidden;">
+        <span style="position:absolute;top:1rem;right:1rem;font-family:var(--font-head);font-size:2rem;color:var(--faint);font-weight:900">02</span>
+        <span style="font-size:1.75rem;margin-bottom:.75rem;display:block">🔬</span>
+        <h3 style="font-family:var(--font-head);font-size:.8rem;letter-spacing:.1em;margin-bottom:.5rem;color:var(--cyan)">Preprocess</h3>
+        <p style="font-size:.85rem;color:var(--muted);line-height:1.6">Resized, normalised 0–1, reshaped to match the input layer.</p>
+      </div>
+      <div class="glass-card" style="position:relative;overflow:hidden;">
+        <span style="position:absolute;top:1rem;right:1rem;font-family:var(--font-head);font-size:2rem;color:var(--faint);font-weight:900">03</span>
+        <span style="font-size:1.75rem;margin-bottom:.75rem;display:block">⚡</span>
+        <h3 style="font-family:var(--font-head);font-size:.8rem;letter-spacing:.1em;margin-bottom:.5rem;color:var(--cyan)">Inference</h3>
+        <p style="font-size:.85rem;color:var(--muted);line-height:1.6">TensorFlow.js runs a forward pass through every layer in the browser.</p>
+      </div>
+      <div class="glass-card" style="position:relative;overflow:hidden;">
+        <span style="position:absolute;top:1rem;right:1rem;font-family:var(--font-head);font-size:2rem;color:var(--faint);font-weight:900">04</span>
+        <span style="font-size:1.75rem;margin-bottom:.75rem;display:block">📊</span>
+        <h3 style="font-family:var(--font-head);font-size:.8rem;letter-spacing:.1em;margin-bottom:.5rem;color:var(--cyan)">Result</h3>
+        <p style="font-size:.85rem;color:var(--muted);line-height:1.6">Softmax or Sigmoid squashes raw scores into human-readable probabilities.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer style="text-align:center;padding:3rem 2rem;border-top:1px solid var(--border);color:var(--muted);font-size:.8rem;">
+    <p style="font-family:var(--font-mono);letter-spacing:.1em">
+      <span class="pulse-dot"></span>POWERED BY TENSORFLOW.JS · NO SERVER NEEDED
+    </p>
+    <p style="margin-top:.5rem">TensorFlow.js · Keras · Vercel</p>
+  </footer>
+
+</div>
+
+<script src="static/js/app.js"></script>
+</body>
+</html>

@@ -194,16 +194,80 @@
 <script>
   let model = null;
 
+  // ── Keras-3-compatible model loader ────────────────────────────────────────
+  async function loadKeras3Model(modelJsonUrl) {
+    const base = modelJsonUrl.substring(0, modelJsonUrl.lastIndexOf('/') + 1);
+    const spec  = await (await fetch(modelJsonUrl)).json();
+    const topo  = spec.modelTopology;
+
+    // 1. Promote model_config → top-level (Keras 3 wraps it)
+    if (topo.model_config && !topo.class_name) {
+      topo.class_name = topo.model_config.class_name;
+      topo.config     = topo.model_config.config;
+      delete topo.model_config;
+    }
+
+    // 2. Fix top-level config dtype (DTypePolicy object → plain string)
+    const topCfg = topo.config || {};
+    if (topCfg.dtype && typeof topCfg.dtype === 'object')
+      topCfg.dtype = (topCfg.dtype.config || {}).name || 'float32';
+
+    // 3. Fix each layer config
+    for (const layer of (topCfg.layers || [])) {
+      const c = layer.config || {};
+      // batch_shape → batchInputShape
+      if (c.batch_shape && !c.batchInputShape) {
+        c.batchInputShape = c.batch_shape;
+        delete c.batch_shape;
+      }
+      // DTypePolicy object → string
+      if (c.dtype && typeof c.dtype === 'object')
+        c.dtype = (c.dtype.config || {}).name || 'float32';
+      // Remove Keras-3-only fields TFjs doesn't understand
+      delete c.optional;
+      delete c.ragged;
+      // Clean initializers
+      for (const k of ['kernel_initializer','bias_initializer',
+                        'moving_mean_initializer','moving_variance_initializer',
+                        'beta_initializer','gamma_initializer']) {
+        if (c[k] && typeof c[k] === 'object') {
+          delete c[k].module;
+          delete c[k].registered_name;
+        }
+      }
+      // Clean activation
+      if (c.activation && typeof c.activation === 'object') {
+        delete c.activation.module;
+        delete c.activation.registered_name;
+      }
+    }
+
+    // 4. Load weight binary shards
+    const weightSpecs = [];
+    const buffers     = [];
+    for (const group of (spec.weightsManifest || [])) {
+      weightSpecs.push(...group.weights);
+      for (const p of group.paths)
+        buffers.push(await (await fetch(base + p)).arrayBuffer());
+    }
+    const totalBytes = buffers.reduce((s, b) => s + b.byteLength, 0);
+    const combined   = new Uint8Array(totalBytes);
+    let   offset     = 0;
+    for (const b of buffers) { combined.set(new Uint8Array(b), offset); offset += b.byteLength; }
+
+    return tf.loadLayersModel(tf.io.fromMemory(topo, weightSpecs, combined.buffer));
+  }
+
   // Load model on page load
   (async () => {
     try {
-      model = await tf.loadLayersModel('models/catdog/model.json');
+      model = await loadKeras3Model('models/catdog/model.json');
       document.getElementById('model-status').innerHTML =
         '<span class="pulse-dot"></span><span style="color:var(--green)">MODEL READY</span>';
       document.getElementById('predict-btn').disabled = false;
     } catch (e) {
       document.getElementById('model-status').innerHTML =
-        '<span style="color:var(--red)">⚠ MODEL LOAD FAILED — check models/catdog/ folder</span>';
+        '<span style="color:var(--red)">⚠ MODEL LOAD FAILED — ' + e.message + '</span>';
       console.error(e);
     }
   })();

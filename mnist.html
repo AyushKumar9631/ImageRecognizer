@@ -270,6 +270,18 @@
     let   offset     = 0;
     for (const b of buffers) { combined.set(new Uint8Array(b), offset); offset += b.byteLength; }
 
+    // ── KEY FIX: Keras 3 stores weights as "modelName/layerName/weight"
+    //   but TF.js loadLayersModel expects just "layerName/weight".
+    //   Strip the model-name prefix so the mapping succeeds.
+    const modelPrefix = topCfg.name ? topCfg.name + '/' : '';
+    if (modelPrefix) {
+      for (const ws of weightSpecs) {
+        if (ws.name.startsWith(modelPrefix)) {
+          ws.name = ws.name.slice(modelPrefix.length);
+        }
+      }
+    }
+
     return tf.loadLayersModel(tf.io.fromMemory(topo, weightSpecs, combined.buffer));
   }
 

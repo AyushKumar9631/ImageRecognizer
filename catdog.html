@@ -52,8 +52,22 @@
           <p class="upload-sub">or click to browse · JPG / PNG / WebP</p>
         </div>
 
+        <!-- OR URL row -->
+        <div class="or-divider" style="margin:.75rem 0">OR LOAD FROM URL</div>
+        <div style="display:flex;gap:.5rem;">
+          <input id="url-input" type="url" placeholder="https://example.com/cat.jpg"
+            style="flex:1;padding:.6rem .85rem;background:var(--faint);border:1px solid var(--border);
+                   border-radius:8px;color:var(--fg);font-family:var(--font-mono);font-size:.72rem;
+                   outline:none;transition:border .2s"
+            onfocus="this.style.borderColor='var(--cyan)'" onblur="this.style.borderColor='var(--border)'" />
+          <button class="btn btn-outline" id="url-load-btn"
+            style="padding:.6rem 1.1rem;font-size:.72rem;white-space:nowrap">LOAD</button>
+        </div>
+        <div id="url-error" style="display:none;margin-top:.4rem;font-family:var(--font-mono);
+             font-size:.68rem;color:var(--red)"></div>
+
         <div id="preview-wrap">
-          <img id="preview-img" alt="Preview" />
+          <img id="preview-img" alt="Preview" crossorigin="anonymous" />
           <p style="margin-top:.5rem;font-family:var(--font-mono);font-size:.7rem;color:var(--muted)">
             Image resized to 100 × 100 px internally for inference
           </p>
@@ -388,12 +402,60 @@
   // Reset
   document.getElementById('reset-btn').addEventListener('click', () => {
     document.getElementById('file-input').value = '';
+    document.getElementById('url-input').value = '';
+    document.getElementById('url-error').style.display = 'none';
     document.getElementById('preview-wrap').style.display = 'none';
     document.getElementById('upload-zone').classList.remove('has-file','drag-over');
     document.getElementById('result-panel').classList.remove('show');
     document.getElementById('result-panel').style.display = 'none';
     document.getElementById('result-panel').innerHTML = '';
     document.getElementById('idle-state').style.display = 'block';
+  });
+
+  // URL loader — load image from link with preview
+  function showPreviewFromImg(img) {
+    document.getElementById('preview-img').src = img.src;
+    document.getElementById('preview-wrap').style.display = 'block';
+    document.getElementById('upload-zone').classList.add('has-file');
+    document.getElementById('result-panel').classList.remove('show');
+    document.getElementById('idle-state').style.display = 'block';
+  }
+
+  document.getElementById('url-load-btn').addEventListener('click', () => {
+    const raw = document.getElementById('url-input').value.trim();
+    const errEl = document.getElementById('url-error');
+    errEl.style.display = 'none';
+    if (!raw) { errEl.textContent = '⚠ Please enter a URL.'; errEl.style.display = 'block'; return; }
+
+    const btn = document.getElementById('url-load-btn');
+    btn.textContent = 'LOADING…'; btn.disabled = true;
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+
+    img.onload = () => {
+      showPreviewFromImg(img);
+      btn.textContent = 'LOAD'; btn.disabled = false;
+    };
+
+    img.onerror = () => {
+      // CORS blocked — retry via proxy
+      const proxy = 'https://images.weserv.nl/?url=' + encodeURIComponent(raw);
+      const img2 = new Image();
+      img2.crossOrigin = 'anonymous';
+      img2.onload = () => { showPreviewFromImg(img2); btn.textContent = 'LOAD'; btn.disabled = false; };
+      img2.onerror = () => {
+        errEl.textContent = '⚠ Could not load image. Check the URL or try downloading and uploading it.';
+        errEl.style.display = 'block';
+        btn.textContent = 'LOAD'; btn.disabled = false;
+      };
+      img2.src = proxy;
+    };
+    img.src = raw;
+  });
+
+  document.getElementById('url-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('url-load-btn').click();
   });
 </script>
 </body>

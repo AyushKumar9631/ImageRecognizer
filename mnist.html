@@ -54,11 +54,11 @@
 
     <div class="two-col">
 
-      <!-- Input card — drawing pad only -->
+      <!-- Input card -->
       <div class="glass-card">
-        <p class="section-tag purple">STEP 1 — DRAW A DIGIT</p>
+        <p class="section-tag purple">STEP 1 — INPUT</p>
 
-        <div style="text-align:center;">
+        <div style="text-align:center;margin-bottom:.5rem;">
           <canvas id="draw-canvas" width="200" height="200" style="max-width:100%"></canvas>
           <div style="display:flex;gap:.5rem;margin-top:.75rem;justify-content:center;">
             <button class="btn btn-outline" id="clear-btn" style="font-size:.65rem;padding:.5rem 1rem">CLEAR</button>
@@ -66,6 +66,40 @@
               PREDICT DRAWING
             </button>
           </div>
+        </div>
+
+        <div class="or-divider">OR UPLOAD IMAGE</div>
+
+        <div class="upload-zone" id="upload-zone" style="padding:1.5rem">
+          <input type="file" id="file-input" accept="image/*" />
+          <span class="upload-icon" style="font-size:2rem">🖼️</span>
+          <p class="upload-title" style="font-size:.75rem">DROP IMAGE / CLICK TO BROWSE</p>
+          <p class="upload-sub" style="font-size:.75rem">JPG · PNG · WebP · Grayscale preferred</p>
+        </div>
+
+        <div class="or-divider" style="margin:.75rem 0">OR LOAD FROM URL</div>
+        <div style="display:flex;gap:.5rem;">
+          <input id="url-input" type="url" placeholder="https://example.com/digit.png"
+            style="flex:1;padding:.55rem .8rem;background:var(--faint);border:1px solid var(--border);
+                   border-radius:8px;color:var(--fg);font-family:var(--font-mono);font-size:.7rem;
+                   outline:none;transition:border .2s"
+            onfocus="this.style.borderColor='var(--purple)'" onblur="this.style.borderColor='var(--border)'" />
+          <button class="btn btn-outline" id="url-load-btn"
+            style="padding:.55rem 1rem;font-size:.7rem;white-space:nowrap">LOAD</button>
+        </div>
+        <div id="url-error" style="display:none;margin-top:.4rem;font-family:var(--font-mono);
+             font-size:.68rem;color:var(--red)"></div>
+
+        <div id="preview-wrap">
+          <img id="preview-img" alt="Preview" crossorigin="anonymous" style="max-width:120px" />
+          <p style="margin-top:.4rem;font-family:var(--font-mono);font-size:.65rem;color:var(--muted)">
+            Converted to 28×28 grayscale internally
+          </p>
+        </div>
+
+        <div style="margin-top:1.25rem;display:flex;gap:.75rem;flex-wrap:wrap;">
+          <button class="btn btn-cyan" id="predict-btn" style="flex:1;font-size:.72rem" disabled>RUN PREDICTION</button>
+          <button class="btn btn-outline" id="reset-btn" style="padding:.75rem 1rem">↺</button>
         </div>
       </div>
 
@@ -75,7 +109,7 @@
         <div id="result-panel"></div>
         <div id="idle-state" style="text-align:center;padding:2rem 0;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;">
           <div style="font-family:var(--font-head);font-size:5rem;opacity:.15;font-weight:900">?</div>
-          <p style="color:var(--muted);font-size:.85rem;font-family:var(--font-mono);letter-spacing:.1em;margin-top:.5rem">DRAW A DIGIT</p>
+          <p style="color:var(--muted);font-size:.85rem;font-family:var(--font-mono);letter-spacing:.1em;margin-top:.5rem">DRAW OR UPLOAD A DIGIT</p>
         </div>
       </div>
     </div>
@@ -270,6 +304,7 @@
       model = await loadKeras3Model('models/mnist/model.json');
       document.getElementById('model-status').innerHTML =
         '<span class="pulse-dot"></span><span style="color:var(--green)">MODEL READY</span>';
+      document.getElementById('predict-btn').disabled = false;
       document.getElementById('draw-predict-btn').disabled = false;
     } catch (e) {
       document.getElementById('model-status').innerHTML =
@@ -301,10 +336,6 @@
 
   document.getElementById('clear-btn').addEventListener('click', () => {
     dctx.fillStyle='#000'; dctx.fillRect(0,0,200,200);
-    document.getElementById('result-panel').classList.remove('show');
-    document.getElementById('result-panel').style.display = 'none';
-    document.getElementById('result-panel').innerHTML = '';
-    document.getElementById('idle-state').style.display = 'flex';
   });
 
   // ── Build result HTML ────────────────────────────────────────────────────
@@ -379,7 +410,96 @@
     runInference(drawCanvas);
   });
 
+  // File upload
+  document.getElementById('file-input').addEventListener('change', function () {
+    const file = this.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = document.getElementById('preview-img');
+      img.src = e.target.result;
+      document.getElementById('preview-wrap').style.display = 'block';
+      document.getElementById('upload-zone').classList.add('has-file');
+    };
+    reader.readAsDataURL(file);
+  });
 
+  // Upload → predict button
+  document.getElementById('predict-btn').addEventListener('click', () => {
+    const img = document.getElementById('preview-img');
+    if (img.src && img.complete) runInference(img);
+  });
+
+  // Drag & drop
+  const zone = document.getElementById('upload-zone');
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    const dt = new DataTransfer(); dt.items.add(file);
+    document.getElementById('file-input').files = dt.files;
+    document.getElementById('file-input').dispatchEvent(new Event('change'));
+  });
+
+  // Reset
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    document.getElementById('url-input').value = '';
+    document.getElementById('url-error').style.display = 'none';
+    document.getElementById('file-input').value = '';
+    document.getElementById('preview-wrap').style.display = 'none';
+    document.getElementById('upload-zone').classList.remove('has-file','drag-over');
+    document.getElementById('result-panel').classList.remove('show');
+    document.getElementById('result-panel').style.display = 'none';
+    document.getElementById('result-panel').innerHTML = '';
+    document.getElementById('idle-state').style.display = 'flex';
+    dctx.fillStyle='#000'; dctx.fillRect(0,0,200,200);
+  });
+
+  // URL loader — load image from link with preview
+  function showPreviewFromImg(img) {
+    document.getElementById('preview-img').src = img.src;
+    document.getElementById('preview-wrap').style.display = 'block';
+    document.getElementById('upload-zone').classList.add('has-file');
+  }
+
+  document.getElementById('url-load-btn').addEventListener('click', () => {
+    const raw = document.getElementById('url-input').value.trim();
+    const errEl = document.getElementById('url-error');
+    errEl.style.display = 'none';
+    if (!raw) { errEl.textContent = '⚠ Please enter a URL.'; errEl.style.display = 'block'; return; }
+
+    const btn = document.getElementById('url-load-btn');
+    btn.textContent = 'LOADING…'; btn.disabled = true;
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+
+    img.onload = () => {
+      showPreviewFromImg(img);
+      btn.textContent = 'LOAD'; btn.disabled = false;
+    };
+
+    img.onerror = () => {
+      // CORS blocked — retry via proxy
+      const proxy = 'https://images.weserv.nl/?url=' + encodeURIComponent(raw);
+      const img2 = new Image();
+      img2.crossOrigin = 'anonymous';
+      img2.onload = () => { showPreviewFromImg(img2); btn.textContent = 'LOAD'; btn.disabled = false; };
+      img2.onerror = () => {
+        errEl.textContent = '⚠ Could not load image. Check the URL or try downloading and uploading it.';
+        errEl.style.display = 'block';
+        btn.textContent = 'LOAD'; btn.disabled = false;
+      };
+      img2.src = proxy;
+    };
+    img.src = raw;
+  });
+
+  document.getElementById('url-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('url-load-btn').click();
+  });
 </script>
 </body>
 </html>

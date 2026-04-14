@@ -214,49 +214,96 @@
     const spec  = await (await fetch(modelJsonUrl)).json();
     const topo  = spec.modelTopology;
 
-    // 1. Promote model_config → top-level (Keras 3 wraps it)
+    // ── Step 1: Promote model_config → top-level (Keras 3 wraps it) ─────────
     if (topo.model_config && !topo.class_name) {
       topo.class_name = topo.model_config.class_name;
       topo.config     = topo.model_config.config;
       delete topo.model_config;
     }
 
-    // 2. Fix top-level config dtype (DTypePolicy object → plain string)
+    // ── Step 2: Fix top-level config dtype (DTypePolicy → string) ────────────
     const topCfg = topo.config || {};
     if (topCfg.dtype && typeof topCfg.dtype === 'object')
       topCfg.dtype = (topCfg.dtype.config || {}).name || 'float32';
 
-    // 3. Fix each layer config
+    // ── Step 3: Fix input_layers / output_layers wrapping ────────────────────
+    // Keras 3: ["layer_name", 0, 0]  →  TF.js: [["layer_name", 0, 0]]
+    for (const key of ['input_layers', 'output_layers']) {
+      if (Array.isArray(topCfg[key]) && topCfg[key].length > 0
+          && !Array.isArray(topCfg[key][0])) {
+        topCfg[key] = [topCfg[key]];
+      }
+    }
+
+    // ── Step 4: Fix each layer config ────────────────────────────────────────
     for (const layer of (topCfg.layers || [])) {
       const c = layer.config || {};
-      // batch_shape → batchInputShape
+
+      // batch_shape → batchInputShape  (Sequential / InputLayer)
       if (c.batch_shape && !c.batchInputShape) {
         c.batchInputShape = c.batch_shape;
         delete c.batch_shape;
       }
-      // DTypePolicy object → string
+
+      // DTypePolicy object → plain string
       if (c.dtype && typeof c.dtype === 'object')
         c.dtype = (c.dtype.config || {}).name || 'float32';
-      // Remove Keras-3-only fields TFjs doesn't understand
+
+      // Remove Keras-3-only fields TF.js doesn't understand
       delete c.optional;
       delete c.ragged;
+      delete c.synchronized;   // BatchNormalization multi-GPU flag
+
+      // Reshape: target_shape (snake) → targetShape (camel)
+      if (layer.class_name === 'Reshape' && c.target_shape && !c.targetShape) {
+        c.targetShape = c.target_shape;
+        delete c.target_shape;
+      }
+
+      // BatchNormalization: axis -1 → 3 (channels-last 4-D) or 1 (2-D)
+      // TF.js BN doesn't resolve negative axes; use 3 as safe default for CNN layers
+      if (layer.class_name === 'BatchNormalization' && c.axis === -1) {
+        c.axis = 3;
+      }
+
       // Clean initializers
-      for (const k of ['kernel_initializer','bias_initializer',
-                        'moving_mean_initializer','moving_variance_initializer',
-                        'beta_initializer','gamma_initializer']) {
+      for (const k of [
+        'kernel_initializer', 'bias_initializer',
+        'moving_mean_initializer', 'moving_variance_initializer',
+        'beta_initializer', 'gamma_initializer'
+      ]) {
         if (c[k] && typeof c[k] === 'object') {
           delete c[k].module;
           delete c[k].registered_name;
         }
       }
-      // Clean activation
+
+      // Clean activation objects
       if (c.activation && typeof c.activation === 'object') {
         delete c.activation.module;
         delete c.activation.registered_name;
       }
+
+      // ── Step 5: Convert inbound_nodes from Keras 3 → TF.js format ──────────
+      // Keras 3: [{args:[{class_name:"__keras_tensor__", config:{keras_history:[name,ni,ti]}}], kwargs:{}}]
+      // TF.js  : [[[name, ni, ti, {}]]]
+      const nodes = layer.inbound_nodes;
+      if (Array.isArray(nodes) && nodes.length > 0
+          && nodes[0] !== null && typeof nodes[0] === 'object'
+          && !Array.isArray(nodes[0])) {
+        layer.inbound_nodes = nodes.map(node => {
+          const args = Array.isArray(node.args) ? node.args : [];
+          return args
+            .filter(a => a && a.class_name === '__keras_tensor__')
+            .map(a => {
+              const kh = (a.config || {}).keras_history || [];
+              return [kh[0] || '', kh[1] || 0, kh[2] || 0, {}];
+            });
+        });
+      }
     }
 
-    // 4. Load weight binary shards
+    // ── Step 6: Load & combine weight binary shards ───────────────────────────
     const weightSpecs = [];
     const buffers     = [];
     for (const group of (spec.weightsManifest || [])) {
@@ -269,21 +316,18 @@
     let   offset     = 0;
     for (const b of buffers) { combined.set(new Uint8Array(b), offset); offset += b.byteLength; }
 
-    // ── KEY FIX: Keras 3 stores weights as "modelName/layerName/weight"
-    //   but TF.js loadLayersModel expects just "layerName/weight".
-    //   Strip the model-name prefix so the mapping succeeds.
+    // ── Step 7: Strip model-name prefix from weight names ────────────────────
+    // Keras 3: "modelName/layerName/weight"  →  TF.js: "layerName/weight"
     const modelPrefix = topCfg.name ? topCfg.name + '/' : '';
     if (modelPrefix) {
       for (const ws of weightSpecs) {
-        if (ws.name.startsWith(modelPrefix)) {
+        if (ws.name.startsWith(modelPrefix))
           ws.name = ws.name.slice(modelPrefix.length);
-        }
       }
     }
 
     return tf.loadLayersModel(tf.io.fromMemory(topo, weightSpecs, combined.buffer));
   }
-
   // Load model on page load
   (async () => {
     try {
